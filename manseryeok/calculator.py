@@ -8,7 +8,6 @@ class SajuCalculator:
         _, self.solar_terms = load_bundled_data()
 
     def calculate(self) -> dict:
-        """korean-saju 라이브러리를 활용해 두 줄 형태의 사주팔자 결과 반환"""
         saju = Saju.from_birth(
             kst_moment=self.birth_date,
             solar_terms=self.solar_terms,
@@ -16,25 +15,35 @@ class SajuCalculator:
             yaja_si_separated=True  
         )
         
-        # 1. 라이브러리 출력값 분리 (예: ['甲辰(갑진)', '庚午(경오)', '乙丑(을축)', '丙子(병자)'])
+        # 1. 라이브러리 출력값 분리 (순서: 년, 월, 일, 시)
         pillars = str(saju).split()
         
-        hangul_pillars = []
-        for p in pillars:
-            # 2. 정규식을 이용해 텍스트에서 한글만 추출 (예: "甲辰(갑진)" -> "갑진")
-            hangul = "".join(re.findall(r'[가-힣]', p))
-            if hangul:
-                hangul_pillars.append(hangul)
+        # 2. 사주 명식 배열을 위해 순서 뒤집기 (순서: 시, 일, 월, 년)
+        pillars.reverse()
+        pillar_names = ["시주", "일주", "월주", "년주"]
         
-        # 3. 배열 순서 뒤집기 (년, 월, 일, 시 ➔ 시, 일, 월, 년)
-        hangul_pillars.reverse()
+        # 3. 프론트엔드로 넘겨줄 구조화된 딕셔너리 생성
+        saju_data = {}
         
-        # 4. 천간(윗줄)과 지지(아랫줄) 분리
-        # 첫 번째 글자들만 모으면 천간, 두 번째 글자들만 모으면 지지가 됨
-        top_row = "".join([pillar[0] for pillar in hangul_pillars])
-        bottom_row = "".join([pillar[1] for pillar in hangul_pillars])
-        
-        return {
-            "top": top_row,
-            "bottom": bottom_row
-        }
+        for i, p in enumerate(pillars):
+            pillar_key = pillar_names[i]
+            
+            # 정규식으로 한자와 한글 분리 매칭
+            match = re.match(r'([一-龥])([一-龥])\(([가-힣])([가-힣])\)', p)
+            if match:
+                hanja_top, hanja_bottom = match.group(1), match.group(2)
+                hangul_top, hangul_bottom = match.group(3), match.group(4)
+                
+                # 각각의 글자를 변수(Key)에 독립적으로 담기
+                saju_data[pillar_key] = {
+                    "천간": f"{hangul_top}({hanja_top})",
+                    "지지": f"{hangul_bottom}({hanja_bottom})"
+                }
+            else:
+                # 파싱 실패 시 원본 유지 (안전 장치)
+                saju_data[pillar_key] = {
+                    "천간": p,
+                    "지지": p
+                }
+                
+        return saju_data
